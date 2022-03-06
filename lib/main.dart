@@ -2,27 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import 'enum.dart';
 import 'todo.dart';
 
 final todoListProvider = StateNotifierProvider<TodoList, List<Todo>>((ref) {
   return TodoList(const [
-    Todo(id: 'todo-0', description: 'hi'),
-    Todo(id: 'todo-1', description: 'hello'),
-    Todo(id: 'todo-2', description: 'bonjour'),
+    Todo(id: 'todo-0', description: 'Apples'),
+    Todo(id: 'todo-1', description: 'Banana'),
+    Todo(id: 'todo-2', description: 'Orange'),
   ]);
 });
 
-/// The different ways to filter the list of todos
-enum TodoListFilter {
-  all,
-  active,
-  completed,
-}
-
-/// The currently active filter.
-///
-/// We use [StateProvider] here as there is no fancy logic behind manipulating
-/// the value since it's just enum.
 final todoListFilter = StateProvider((_) => TodoListFilter.all);
 final uncompletedTodosCount = Provider<int>((ref) {
   return ref.watch(todoListProvider).where((todo) => !todo.completed).length;
@@ -40,6 +30,8 @@ final filteredTodos = Provider<List<Todo>>((ref) {
       return todos;
   }
 });
+
+final _currentTodo = Provider<Todo>((ref) => throw UnimplementedError());
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
@@ -115,9 +107,10 @@ class Toolbar extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(todoListFilter);
 
-    Color? textColorFor(TodoListFilter value) {
-      return filter == value ? Colors.blue : Colors.black;
-    }
+    void toggleFilter(TodoListFilter type) =>
+        ref.read(todoListFilter.notifier).state = type;
+
+    bool changeFilter(TodoListFilter type) => filter == type;
 
     return Material(
       child: Row(
@@ -129,48 +122,49 @@ class Toolbar extends HookConsumerWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          Tooltip(
-            message: 'All todos',
-            child: TextButton(
-              onPressed: () =>
-                  ref.read(todoListFilter.notifier).state = TodoListFilter.all,
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                foregroundColor:
-                    MaterialStateProperty.all(textColorFor(TodoListFilter.all)),
-              ),
-              child: const Text('All'),
-            ),
+          _CustomTooltip(
+            'All',
+            isType: changeFilter(TodoListFilter.all),
+            onPressed: () => toggleFilter(TodoListFilter.all),
           ),
-          Tooltip(
-            message: 'Only uncompleted todos',
-            child: TextButton(
-              onPressed: () => ref.read(todoListFilter.notifier).state =
-                  TodoListFilter.active,
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                foregroundColor: MaterialStateProperty.all(
-                  textColorFor(TodoListFilter.active),
-                ),
-              ),
-              child: const Text('Active'),
-            ),
+          _CustomTooltip(
+            'Active',
+            isType: changeFilter(TodoListFilter.active),
+            onPressed: () => toggleFilter(TodoListFilter.active),
           ),
-          Tooltip(
-            message: 'Only completed todos',
-            child: TextButton(
-              onPressed: () => ref.read(todoListFilter.notifier).state =
-                  TodoListFilter.completed,
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                foregroundColor: MaterialStateProperty.all(
-                  textColorFor(TodoListFilter.completed),
-                ),
-              ),
-              child: const Text('Completed'),
-            ),
+          _CustomTooltip(
+            'Completed',
+            isType: changeFilter(TodoListFilter.completed),
+            onPressed: () => toggleFilter(TodoListFilter.completed),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CustomTooltip extends StatelessWidget {
+  const _CustomTooltip(
+    this.text, {
+    this.isType = false,
+    this.onPressed,
+    Key? key,
+  }) : super(key: key);
+
+  final String text;
+  final VoidCallback? onPressed;
+  final bool isType;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          primary: isType ? Colors.blue : Colors.black.withOpacity(.3),
+        ),
+        child: Text(text),
       ),
     );
   }
@@ -182,26 +176,17 @@ class Title extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Text(
-      'todos',
+      'Todos',
       textAlign: TextAlign.center,
       style: TextStyle(
         color: Color.fromARGB(38, 47, 47, 247),
         fontSize: 100,
-        fontWeight: FontWeight.w100,
+        fontWeight: FontWeight.w200,
         fontFamily: 'Helvetica Neue',
       ),
     );
   }
 }
-
-/// A provider which exposes the [Todo] displayed by a [TodoItem].
-///
-/// By retreiving the [Todo] through a provider instead of through its
-/// constructor, this allows [TodoItem] to be instantiated using the `const` keyword.
-///
-/// This ensures that when we add/remove/edit todos, only what the
-/// impacted widgets rebuilds, instead of the entire list of items.
-final _currentTodo = Provider<Todo>((ref) => throw UnimplementedError());
 
 class TodoItem extends HookConsumerWidget {
   const TodoItem({Key? key}) : super(key: key);
@@ -212,8 +197,8 @@ class TodoItem extends HookConsumerWidget {
     final itemFocusNode = useFocusNode();
     // listen to focus chances
     useListenable(itemFocusNode);
-    final isFocused = itemFocusNode.hasFocus;
 
+    final isFocused = itemFocusNode.hasFocus;
     final textEditingController = useTextEditingController();
     final textFieldFocusNode = useFocusNode();
 
